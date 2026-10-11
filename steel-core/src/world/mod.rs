@@ -663,13 +663,27 @@ impl World {
             );
         }
 
+        let player_phase = {
+            let _span = tracing::trace_span!("player_do_tick").entered();
+            let start = Instant::now();
+            // Snapshot first: do_tick can disconnect or move a player mid-iteration.
+            let mut players: Vec<SharedEntity> = Vec::new();
+            self.players.iter_players(|_uuid, player| {
+                let shared: SharedEntity = Arc::<Player>::clone(player);
+                players.push(shared);
+                true
+            });
+            self.entity_manager.tick_player_phase(&players);
+            start.elapsed()
+        };
+        
         chunk_map_timings
             .lookup_cache
             .merge(lookup_cache_scope.finish());
         WorldGameTickTimings {
             elapsed: world_start.elapsed(),
             chunk_map: chunk_map_timings,
-            entity_tick,
+            entity_tick: entity_tick + player_phase,
         }
     }
 
