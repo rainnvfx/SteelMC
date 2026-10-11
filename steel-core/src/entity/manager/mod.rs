@@ -1445,6 +1445,21 @@ impl WorldEntityManager {
         dirty_chunks
     }
 
+    /// Runs the vanilla connection-phase tick (`ServerPlayer.doTick`) for players.
+    ///
+    /// Must run after [`Self::tick_entities`], so item pickup delays have
+    /// already been decremented, as in vanilla's `tickChildren` ordering.
+    pub fn tick_player_phase(&self, players: &[SharedEntity]) {
+        for entity in players {
+            if entity.is_removed() || !self.can_tick_entity_now(entity.id()) {
+                continue;
+            }
+            if let Some(player) = entity.as_player() {
+                player.do_tick(entity);
+            }
+        }
+    }
+
     fn ticking_entities_snapshot(&self) -> Vec<SharedEntity> {
         self.state.read().tick_list.snapshot()
     }
