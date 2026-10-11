@@ -1290,6 +1290,26 @@ impl Player {
             }
         }
     }
+
+    /// Level phase, vanilla `ServerPlayer.tick()`: game mode and container menu.
+    /// Does not call `super.tick()`; that half runs later from [`Self::do_tick`].
+    fn tick_level_phase(&self) {
+        if self.get_health() > 0.0 {
+            let world = self.get_world();
+            self.block_breaking.lock().tick(self, &world);
+        }
+        self.tick_open_menu();
+        self.flush_inventory_resync();
+        self.broadcast_inventory_changes();
+    }
+
+    /// Connection phase, vanilla `ServerPlayer.doTick()`.
+    ///
+    /// Runs after every entity in the world has ticked, so item pickup delays
+    /// have already been decremented when `touch_nearby_items` runs.
+    pub(crate) fn do_tick(&self, entity: &SharedEntity) {
+        LivingEntity::tick_living_entity(self, entity);
+    }
 }
 
 impl Entity for Player {
@@ -1303,6 +1323,12 @@ impl Entity for Player {
 
     fn base_tick(&self) {
         LivingEntity::base_tick_living_entity(self);
+    }
+
+    /// Vanilla `ServerPlayer.tick()`: level phase only. The living-entity
+    /// half runs from `Player::do_tick` after all entities have ticked.
+    fn tick(self: Arc<Self>) {
+        self.tick_level_phase();
     }
 
     fn scoreboard_name(&self) -> String {
@@ -1775,9 +1801,7 @@ impl LivingEntity for Player {
         if self.get_health() <= 0.0 {
             self.tick_death();
         } else {
-            let world = self.get_world();
             self.touch_nearby_items();
-            self.block_breaking.lock().tick(self, &world);
 
             self.update_player_attributes();
             self.living_base.refresh_speed_from_attributes();
@@ -1797,9 +1821,6 @@ impl LivingEntity for Player {
 
         self.tick_living_state();
 
-        self.tick_open_menu();
-        self.flush_inventory_resync();
-        self.broadcast_inventory_changes();
         self.update_pose();
 
         {
